@@ -172,23 +172,33 @@ M._render_node = render_node
 
 ---@param size number
 ---@param viewport integer
-local function calc_size(size, viewport)
-    return size > 1 and math.min(size, viewport) or math.floor(size * viewport)
+---@param cutoff number To account for unavailable space.
+local function calc_size(size, viewport, cutoff)
+    return size > 1 and math.min(math.max(size - cutoff, 1), viewport) or math.floor(size * viewport)
 end
 
 ---@param opts WindowOpts
 ---@param sizes_only boolean Whether to only return properties that control the window size.
 local function create_popup_window_opts(opts, sizes_only)
-    local lines = vim.o.lines - vim.o.cmdheight
-    local columns = vim.o.columns
-    local height = calc_size(settings.current.ui.height, lines)
-    local width = calc_size(settings.current.ui.width, columns)
+    local linecut = vim.o.cmdheight + 1 -- Count unavailable lines. Extra 1 is for statusline.
+    local colcut = 0 -- count unavailable columns
+
+    if opts.border ~= "none" and opts.border ~= "" then
+        linecut = linecut + 2 -- One for each side.
+        colcut = colcut + 2 -- One for each side.
+    end
+
+    -- Maximum possible window size. Less than 1 makes no sense.
+    local lines = math.max(vim.o.lines - linecut, 1)
+    local columns = math.max(vim.o.columns - colcut, 1)
+
+    --  Clamp demanded configuration between 1 and maximum possible window size.
+    local height = calc_size(settings.current.ui.height, lines, linecut)
+    local width = calc_size(settings.current.ui.width, columns, colcut)
+
+    -- Center window.
     local row = math.floor((lines - height) / 2)
     local col = math.floor((columns - width) / 2)
-    if opts.border ~= "none" and opts.border ~= "" then
-        row = math.max(row - 1, 0)
-        col = math.max(col - 1, 0)
-    end
 
     local popup_layout = {
         height = height,
